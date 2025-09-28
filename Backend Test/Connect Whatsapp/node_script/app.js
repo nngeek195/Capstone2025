@@ -1,7 +1,7 @@
 require("dotenv").config();
 const fs = require("fs");
-// Import the 'exec' function to run external scripts
-const { exec } = require("child_process");
+// We now use Axios instead of 'exec'
+const axios = require("axios");
 const {
   default: makeWASocket,
   useMultiFileAuthState,
@@ -11,15 +11,14 @@ const {
 const qrcode = require("qrcode-terminal");
 
 const AUTH_FOLDER_PATH = "auth_info";
-// The new JSON file for storing conversations by user
 const CONVERSATIONS_FILE_PATH = "conversations.json";
+// The URL where our Python API server is running
+const PYTHON_API_URL = "http://127.0.0.1:5001/generate";
 
 async function startWhatsApp() {
   console.log("🔄 Starting WhatsApp connection...");
-
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_FOLDER_PATH);
   const { version } = await fetchLatestBaileysVersion();
-
   const sock = makeWASocket({
     version,
     auth: state,
@@ -53,67 +52,44 @@ async function startWhatsApp() {
     if (!msg.message || msg.key.fromMe) return;
 
     const messageText = msg.message.conversation || msg.message.extendedTextMessage?.text;
-    if (!messageText) {
-      console.log("📢 Received a non-text message. Skipping AI processing.");
-      return;
-    }
+    if (!messageText) return;
 
-    // The chat ID is our unique identifier for the user or group
     const chatId = msg.key.remoteJid;
     console.log(`💬 Received message from ${chatId}: "${messageText}"`);
 
-    // --- NEW LOGIC FOR CONVERSATION HISTORY ---
     try {
       let allConversations = {};
-      // 1. Read existing conversations
       if (fs.existsSync(CONVERSATIONS_FILE_PATH)) {
         const fileContent = fs.readFileSync(CONVERSATIONS_FILE_PATH, "utf-8");
         if (fileContent) allConversations = JSON.parse(fileContent);
       }
-
-      // 2. Get the history for the current user, or create it if it's new
       let userHistory = allConversations[chatId] || [];
-
-      // 3. Add the new message to the history with the 'user' role
       userHistory.push({ role: "user", parts: [messageText] });
-
-      // Update the main conversations object
       allConversations[chatId] = userHistory;
-
-      // 4. Save the updated conversations back to the file
       fs.writeFileSync(CONVERSATIONS_FILE_PATH, JSON.stringify(allConversations, null, 2));
-      console.log(`💾 Saved message to history for ${chatId}`);
 
-      // --- NEW LOGIC TO CALL PYTHON SCRIPT ---
-      console.log(`🧠 Calling Python script for AI response...`);
-      // We execute the python script and pass the chatId as an argument
-      const command = `python gemini_handler.py "${chatId}"`;
+      // --- NEW LOGIC: Call the Python API using Axios ---
+      console.log(`🧠 Sending history to Python API server...`);
 
-      exec(command, async (error, stdout, stderr) => {
-        if (error) {
-          console.error(`❌ Error executing Python script: ${error.message}`);
-          return;
-        }
-        if (stderr) {
-          console.error(`🐍 Python script stderr: ${stderr}`);
-        }
-
-        const geminiResponse = stdout.trim();
-        if (geminiResponse) {
-          console.log(`🤖 Gemini Response: "${geminiResponse}"`);
-
-          // Add Gemini's response to our history with the 'model' role
-          userHistory.push({ role: "model", parts: [geminiResponse] });
-          allConversations[chatId] = userHistory;
-          fs.writeFileSync(CONVERSATIONS_FILE_PATH, JSON.stringify(allConversations, null, 2));
-
-          // Send the response back to the user on WhatsApp
-          await sock.sendMessage(chatId, { text: geminiResponse });
-          console.log(`✅ Sent Gemini response to ${chatId}`);
-        }
+      // We send the entire history in the request body
+      const apiResponse = await axios.post(PYTHON_API_URL, {
+        history: userHistory,
       });
+
+      const geminiResponse = apiResponse.data.response;
+
+      if (geminiResponse) {
+        console.log(`🤖 Gemini Response: "${geminiResponse}"`);
+        userHistory.push({ role: "model", parts: [geminiResponse] });
+        allConversations[chatId] = userHistory;
+        fs.writeFileSync(CONVERSATIONS_FILE_PATH, JSON.stringify(allConversations, null, 2));
+        await sock.sendMessage(chatId, { text: geminiResponse });
+        console.log(`✅ Sent Gemini response to ${chatId}`);
+      }
     } catch (err) {
-      console.error("❌ An error occurred in the message handling logic:", err);
+      console.error("❌ An error occurred:", err.message);
+      // Let the user know something went wrong
+      await sock.sendMessage(chatId, { text: "Sorry, I couldn't get a response. Please try again." });
     }
   });
 }

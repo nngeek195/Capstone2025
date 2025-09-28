@@ -3,66 +3,44 @@ import json
 import sys
 import google.generativeai as genai
 from dotenv import load_dotenv
+from flask import Flask, request, jsonify
 
-# Load environment variables from .env file
+# --- Basic Setup ---
 load_dotenv()
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 
-# Configure the Gemini API with your key
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key:
-    print("Error: GEMINI_API_KEY not found. Please set it in the .env file.")
-    sys.exit(1)
-genai.configure(api_key=api_key)
+# --- Create the Flask App ---
+# This is the core of our server
+app = Flask(__name__)
 
-# --- Get the directory where this Python script is located ---
-# This makes the path reliable, no matter where you run the script from.
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# --- Create a full, reliable path to the JSON file ---
-# It will now correctly look for the file inside the 'node_script' folder.
-CONVERSATIONS_FILE = os.path.join(SCRIPT_DIR, 'messages.json')
-
-def get_gemini_response(user_id):
-    """
-    Reads conversation history, sends it to Gemini, and returns the response.
-    """
+# --- Define the API Endpoint ---
+# This function will run when Node.js sends a request to http://.../generate
+@app.route('/generate', methods=['POST'])
+def generate_response():
     try:
-        # Read the entire conversations object
-        with open(CONVERSATIONS_FILE, 'r') as f:
-            all_conversations = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        # If the file doesn't exist or is empty, there's no history
-        print("Error: Conversation file not found or is empty.")
-        return
+        # Get the data sent by the Node.js script
+        data = request.get_json()
+        if not data or 'history' not in data:
+            return jsonify({"error": "Invalid request, 'history' is required."}), 400
 
-    # Get the specific user's message history
-    user_history = all_conversations.get(user_id)
-    if not user_history:
-        print(f"Error: No history found for user {user_id}.")
-        return
+        user_history = data['history']
 
-    # Set up the generative model
-    model = genai.GenerativeModel('gemini-pro')
-    
-    # Start a chat session and load the history
-    # The history must alternate between 'user' and 'model' roles
-    chat = model.start_chat(history=user_history)
-    
-    # The last message in our history is the new user prompt
-    last_message = user_history[-1]['parts'][0]
-
-    try:
-        # Send the new prompt to the chat
+        # --- Gemini Logic (same as before) ---
+        model = genai.GenerativeModel('gemini-pro')
+        chat = model.start_chat(history=user_history)
+        
+        last_message = user_history[-1]['parts'][0]
         response = chat.send_message(last_message)
-        # The script's final output is the Gemini response text
-        print(response.text)
-    except Exception as e:
-        print(f"Error communicating with Gemini API: {e}")
 
+        # --- Send the response back to Node.js ---
+        return jsonify({'response': response.text})
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"error": "Failed to generate response from Gemini."}), 500
+
+# --- Start the Server ---
 if __name__ == "__main__":
-    # The Node.js script will pass the user_id as a command-line argument
-    if len(sys.argv) > 1:
-        user_id_argument = sys.argv[1]
-        get_gemini_response(user_id_argument)
-    else:
-        print("Error: No user ID provided.")
+    # The server will run on localhost at port 5001
+    # The "0.0.0.0" host makes it accessible on your local network
+    app.run(host='0.0.0.0', port=5001)
