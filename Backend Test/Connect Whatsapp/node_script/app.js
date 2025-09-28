@@ -64,7 +64,7 @@ async function startWhatsApp() {
         if (fileContent) allConversations = JSON.parse(fileContent);
       }
       let userHistory = allConversations[chatId] || [];
-      userHistory.push({ role: "user", parts: [messageText] });
+      userHistory.push({ role: "user", parts: [{ text: messageText }] });
       allConversations[chatId] = userHistory;
       fs.writeFileSync(CONVERSATIONS_FILE_PATH, JSON.stringify(allConversations, null, 2));
 
@@ -80,7 +80,7 @@ async function startWhatsApp() {
 
       if (geminiResponse) {
         console.log(`🤖 Gemini Response: "${geminiResponse}"`);
-        userHistory.push({ role: "model", parts: [geminiResponse] });
+        userHistory.push({ role: "model", parts: [{ text: geminiResponse }] });
         allConversations[chatId] = userHistory;
         fs.writeFileSync(CONVERSATIONS_FILE_PATH, JSON.stringify(allConversations, null, 2));
         await sock.sendMessage(chatId, { text: geminiResponse });

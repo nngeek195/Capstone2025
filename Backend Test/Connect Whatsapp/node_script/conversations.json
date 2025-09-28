@@ -1,0 +1,76 @@
+{
+  "94701741730@s.whatsapp.net": [
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Hey"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "HeyHeyHey back at ya! What's going on?"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "parts": [
+        {
+          "text": "Can I talk with your boss"
+        }
+      ]
+    },
+    {
+      "role": "model",
+      "parts": [
+        {
+          "text": "As an AI, I don't have a \"boss\" in the traditional sense like a human employee does. I was developed by Google.\n\nIs there something specific I can help you with, or something you'd like to provide feedback on? I'll do my best to assist you!"
+        }
+      ]
+    }
+  ]
+}
